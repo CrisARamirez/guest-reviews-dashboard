@@ -235,16 +235,24 @@ export function getUnansweredQueue(reviews) {
 
   return reviews
     .filter((r) => !r.host_response)
-    .map((r) => ({
-      ...r,
-
-      priorityScore:
-        (5 - (r.rating_overall ?? 3)) * 2 +
-        Math.floor(
-          (today - r.review_date) / 86_400_000
-        ) *
-          0.1,
-    }))
+    .map((r) => {
+      const rating = r.rating_overall ?? 3;
+      const daysSinceReview = Math.floor(
+        (today - r.review_date) / 86_400_000
+      );
+      
+      // Priority score formula:
+      // - Rating severity (5 - rating) is the PRIMARY factor with 100x weight
+      // - Days acts as tie-breaker but capped at 30 days max
+      // - This ensures: 1⭐ 180d (430) > 2⭐ 2d (302), but recent reviews still matter
+      const cappedDays = Math.min(daysSinceReview, 30);
+      const priorityScore = (5 - rating) * 100 + cappedDays;
+      
+      return {
+        ...r,
+        priorityScore,
+      };
+    })
     .sort(
       (a, b) => b.priorityScore - a.priorityScore
     );

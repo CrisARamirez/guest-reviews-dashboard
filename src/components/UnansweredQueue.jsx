@@ -158,7 +158,7 @@ export default function UnansweredQueue({ queue }) {
       </div>
 
       <div className="flex items-center gap-4 mb-3 text-[10px] text-zinc-600">
-        <span>Priority score = (5 − rating) × 2 + days without response × 0.1</span>
+        <span>Priority score = (5 − rating) × 100 + min(days, 30)</span>
       </div>
 
       <div className="space-y-2">
