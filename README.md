@@ -187,6 +187,48 @@ VITE_OPENROUTER_API_KEY=your_openrouter_api_key
 
 **Note**: At least one API key must be configured. The system is resilient and automatically attempts multiple providers.
 
+## AI Costs & Latency
+
+### Current Setup (Gemini Free Tier)
+
+We're using Gemini 2.5 Flash on the free tier. The limits are:
+- 60 requests per minute
+- 1 million tokens per month
+- Typical latency: 2-4 seconds per request
+
+Each analysis consumes roughly 550 tokens (400 input + 150 output), so with 1M free tokens we can do around 1,800 analyses per month.
+
+### Scaling to 50,000 Reviews Per Month
+
+If we want to analyze all reviews with AI (or at least 40% of them), we'd need about 20,000 analyses per month. That's way more than the 1,800 the free tier allows.
+
+Gemini's pricing once the free quota runs out:
+- Input: $0.075 per million tokens
+- Output: $0.30 per million tokens
+
+For 20,000 monthly analyses:
+- Input tokens: 8 million → $600
+- Output tokens: 3 million → $900
+- **Total: ~$1,500/month**
+
+### Ways to Cut Costs
+
+**Batching (Recommended)**
+Analyzing reviews in batches of 5-10 instead of individually reduces overhead by about 70%, bringing costs down to around $450/month.
+
+**Caching**
+Store results for 7-14 days. If we're analyzing the same properties frequently, we save a lot.
+
+**Switch Providers**
+OpenRouter with Mistral is cheaper ($600/month) and more reliable. OpenAI is faster but pricier ($3,600/month). Claude is the best quality but hits $9,600/month.
+
+**Hybrid Approach**
+For really large volumes (100K+ reviews), use local embeddings + rule-based classification for most cases, and only call the LLM for complex/ambiguous ones. That brings costs down to $200-400/month.
+
+### Monitoring
+
+The key is watching token usage in Google Cloud Console. Once you hit 75% of your monthly free quota, switch to paid tier before it cuts off. If you see unexpected costs, check Cloud Console to see what's consuming tokens.
+
 ## Main Views
 
 ### 1. **Overview** (Dashboard)
@@ -259,8 +301,8 @@ If `loading` never disappears, verify:
 
 ### AI Errors
 
-* Ensure at least one API key exists in `.env`
-* Check Console for provider-specific errors
+* Make sure there's at least one API key in `.env`
+* Check the console for provider-specific errors
 * Try switching providers manually
 
 ## License
@@ -273,4 +315,4 @@ For support or questions, contact the Product team.
 
 ---
 
-**Last updated**: 2026-05-24
+**Last updated**: 2026-05-25
