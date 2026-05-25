@@ -187,48 +187,6 @@ VITE_OPENROUTER_API_KEY=your_openrouter_api_key
 
 **Note**: At least one API key must be configured. The system is resilient and automatically attempts multiple providers.
 
-## AI Costs & Latency
-
-### Current Setup (Gemini Free Tier)
-
-We're using Gemini 2.5 Flash on the free tier. The limits are:
-- 60 requests per minute
-- 1 million tokens per month
-- Typical latency: 2-4 seconds per request
-
-Each analysis consumes roughly 550 tokens (400 input + 150 output), so with 1M free tokens we can do around 1,800 analyses per month.
-
-### Scaling to 50,000 Reviews Per Month
-
-If we want to analyze all reviews with AI (or at least 40% of them), we'd need about 20,000 analyses per month. That's way more than the 1,800 the free tier allows.
-
-Gemini's pricing once the free quota runs out:
-- Input: $0.075 per million tokens
-- Output: $0.30 per million tokens
-
-For 20,000 monthly analyses:
-- Input tokens: 8 million → $600
-- Output tokens: 3 million → $900
-- **Total: ~$1,500/month**
-
-### Ways to Cut Costs
-
-**Batching (Recommended)**
-Analyzing reviews in batches of 5-10 instead of individually reduces overhead by about 70%, bringing costs down to around $450/month.
-
-**Caching**
-Store results for 7-14 days. If we're analyzing the same properties frequently, we save a lot.
-
-**Switch Providers**
-OpenRouter with Mistral is cheaper ($600/month) and more reliable. OpenAI is faster but pricier ($3,600/month). Claude is the best quality but hits $9,600/month.
-
-**Hybrid Approach**
-For really large volumes (100K+ reviews), use local embeddings + rule-based classification for most cases, and only call the LLM for complex/ambiguous ones. That brings costs down to $200-400/month.
-
-### Monitoring
-
-The key is watching token usage in Google Cloud Console. Once you hit 75% of your monthly free quota, switch to paid tier before it cuts off. If you see unexpected costs, check Cloud Console to see what's consuming tokens.
-
 ## Main Views
 
 ### 1. **Overview** (Dashboard)
@@ -304,6 +262,99 @@ If `loading` never disappears, verify:
 * Make sure there's at least one API key in `.env`
 * Check the console for provider-specific errors
 * Try switching providers manually
+
+## AI in the Product
+
+### Where AI is Used
+
+The **Ask Reviews** chat panel uses large language models to analyze guest sentiment, identify recurring complaints, and provide actionable insights about property performance. The AI is **not** used for:
+- Making automated decisions (e.g., blocking bad reviews)
+- Generating host responses (drafts only, for human review)
+- Filtering or removing data
+- Replacing human judgment in queue management
+
+### AI Guardrails & Limitations
+
+**Data Limiting:**
+- Only the first 80 reviews are sent to the LLM due to free tier constraints (1M tokens/month)
+- When you ask a question, only the most recent 80 reviews are analyzed
+- Large portfolios (500+ reviews) may have incomplete insights
+- Trend detection works well but complaint patterns may be underrepresented
+
+**Multi-Provider Fallback:**
+- If Google Gemini is unavailable, the system automatically tries Claude, then OpenAI, then OpenRouter
+- If all providers fail, an error message is shown (no silent failures)
+
+**Output Validation:**
+- Theme extraction is capped at 60 themes per property to prevent runaway outputs
+- All LLM responses are validated against expected schemas
+- Malformed JSON is caught and logged without crashing
+
+**Cost Management:**
+- At current usage (free tier), you can run ~1,800 analyses per month
+- For 50,000+ reviews, consider batching (5-10 reviews per analysis) or switching to a cheaper provider like OpenRouter
+
+### Current Setup (Gemini Free Tier)
+
+We're using Gemini 2.5 Flash on the free tier. The limits are:
+- 60 requests per minute
+- 1 million tokens per month
+- Typical latency: 2-4 seconds per request
+
+Each analysis consumes roughly 550 tokens (400 input + 150 output), so with 1M free tokens we can do around 1,800 analyses per month.
+
+### Workarounds & Scaling
+
+**For Incomplete Analysis:**
+1. Filter reviews by date range or property before asking questions
+2. Use the **Properties** view for property-specific analysis
+3. Upgrade to a paid tier to analyze all reviews
+
+**For 10,000–50,000 Reviews/Month:**
+- **Batching**: Analyze reviews in batches of 5-10 instead of individually (reduces API calls by ~70%, cost: ~$450/month)
+- **Caching**: Store theme extraction results for 7-14 days; re-request only for new reviews
+
+**For 100,000+ Reviews/Month:**
+- **Hybrid Approach**: Use local embeddings + rule-based classification for 80% of reviews, only call LLM for complex/ambiguous cases (cost: $200–400/month)
+- **Alternative Providers**: OpenRouter with Mistral (~$600/month), Anthropic Claude (~$9,600/month), OpenAI (~$3,600/month)
+
+Monitor token usage in Google Cloud Console—switch to paid tier when you hit 75% of the monthly free quota.
+
+### See Also
+For detailed development notes on AI prompts, iteration, and decision-making, see [PROMPTS.md](./PROMPTS.md).
+
+---
+
+## Known Issues & Future Improvements
+
+### Parsing Edge Cases
+
+- Reviews with line breaks in the text may not display correctly in the queue
+- Very old CSV files (pre-2020) with inconsistent date formats may fail to parse
+- Empty strings in numeric fields are converted to `null` (not 0)
+
+### Performance with Large Datasets
+
+- With 50,000+ reviews, the UI may lag when applying filters
+- Consider splitting data by year or region into separate uploads
+- The anomaly detection algorithm runs in real-time on filter changes
+
+### Response Rate Metric
+
+The system counts a review as "responded" if `host_response` contains any text. It doesn't validate:
+- Whether the response was actually sent
+- Whether the response was appropriate
+- Responses sent after the review was archived
+
+### Draft Response Generator
+
+The code includes a `generateDraftResponse()` function (in `src/lib/agent.js`), but it's not exposed in the UI. To use it, you would need to:
+1. Add a "Generate Response" button to the queue view
+2. Implement an approval workflow
+3. Add audit logging for compliance
+4. Have legal review the liability implications
+
+---
 
 ## License
 
